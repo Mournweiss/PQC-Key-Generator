@@ -1,14 +1,13 @@
 package main
 
 import (
-    "crypto/rand"
-    "encoding/hex"
     "fmt"
     "log"
     "os"
     "pqckeygen/internal/config"
     pqc "pqckeygen/internal/pqc"
     validation "pqckeygen/internal/validation"
+    utils "pqckeygen/internal/utils"
     "os/exec"
 )
 
@@ -32,7 +31,7 @@ func main() {
         }
     }
 
-    randomPart, err := randomHex(16)
+    randomPart, err := utils.RandomHex(16)
     if err != nil {
         log.Fatalf("Could not generate secure random: %v", err)
     }
@@ -49,21 +48,4 @@ func main() {
         os.Exit(1)
     }
     fmt.Println(genPath)
-}
-
-// randomHex generates a cryptographically secure random hex string
-//
-// Parameters:
-//   n int: Number of bytes to generate (output will be 2*n hex chars)
-//
-// Returns:
-//   string: Hex-encoded random string
-//   error:  If random source fails
-func randomHex(n int) (string, error) {
-    b := make([]byte, n)
-    _, err := rand.Read(b)
-    if err != nil {
-        return "", err
-    }
-    return hex.EncodeToString(b), nil
 }

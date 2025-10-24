@@ -6,9 +6,10 @@ import (
     "os/exec"
     "strings"
     errors "pqckeygen/internal/errors"
+    utils "pqckeygen/internal/utils"
 )
 
-// GenerateKey generates a cryptographic keypair as DER at outPath using the supplied algorithm
+// GenerateKey generates a cryptographic keypair as DER at outPath using the supplied algorithm.
 //
 // Parameters:
 //   algorithm string: The algorithm name as required by OpenSSL (case-insensitive match)
@@ -37,7 +38,7 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
     pemFile := outPath + ".pem"
     genCmd := exec.Command("openssl", "genpkey", "-provider", "default", "-algorithm", algorithm, "-out", pemFile)
     genOut, err := genCmd.CombinedOutput()
-    if err != nil || !fileExists(pemFile) {
+    if err != nil || !utils.FileExists(pemFile) {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
             Message: fmt.Sprintf("Key generation via openssl failed for %s", algorithm),
             Context: map[string]interface{}{ "cmd": genCmd.String(), "output": string(genOut), "path": pemFile, "algorithm": algorithm, "log": string(genOut) },
@@ -46,7 +47,7 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
 
     derCmd := exec.Command("openssl", "pkey", "-in", pemFile, "-outform", "DER", "-out", outPath)
     derOut, err := derCmd.CombinedOutput()
-    if err != nil || !fileExists(outPath) {
+    if err != nil || !utils.FileExists(outPath) {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
             Message: fmt.Sprintf("DER export failed for %s", algorithm),
             Context: map[string]interface{}{ "cmd": derCmd.String(), "output": string(derOut), "path": outPath, "algorithm": algorithm, "log": string(derOut) },
@@ -55,16 +56,4 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
     _ = os.Remove(pemFile)
 
     return outPath, nil
-}
-
-// fileExists checks if the given path exists and is not a directory
-//
-// Parameters:
-//   path string: File path to check
-//
-// Returns:
-//   bool: true if path exists and is a file, false otherwise
-func fileExists(path string) bool {
-    info, err := os.Stat(path)
-    return err == nil && !info.IsDir()
 }
