@@ -12,6 +12,9 @@ import (
     "os/exec"
 )
 
+// main is the entry point for the keygen CLI that coordinates key generation and prints DER key path
+//
+// Exits non-zero on error
 func main() {
     cfg, err := config.Load()
     if err != nil {
@@ -48,6 +51,14 @@ func main() {
     fmt.Println(genPath)
 }
 
+// randomHex generates a cryptographically secure random hex string
+//
+// Parameters:
+//   n int: Number of bytes to generate (output will be 2*n hex chars)
+//
+// Returns:
+//   string: Hex-encoded random string
+//   error:  If random source fails
 func randomHex(n int) (string, error) {
     b := make([]byte, n)
     _, err := rand.Read(b)

@@ -8,10 +8,16 @@ import (
     errors "pqckeygen/internal/errors"
 )
 
-// GenerateKey generates a cryptographic keypair as DER at outPath.
-// Algorithm type is defined by the 'algorithm' argument. Returns path if success, else a typed error.
+// GenerateKey generates a cryptographic keypair as DER at outPath using the supplied algorithm
+//
+// Parameters:
+//   algorithm string: The algorithm name as required by OpenSSL (case-insensitive match)
+//   outPath   string: Target DER file path (volume-mapped, will also write <outPath>.pem temporarily)
+//
+// Returns:
+//   (string)  - Path to successful DER key file (same as outPath)
+//   (error)   - If generation fails due to OpenSSL or unsupported algorithm
 func GenerateKey(algorithm string, outPath string) (string, error) {
-    // Step 1: Check algorithm support via OpenSSL
     listCmd := exec.Command("openssl", "list", "-public-key-algorithms", "-provider", "default")
     out, err := listCmd.CombinedOutput()
     if err != nil {
@@ -20,6 +26,7 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
             Context: map[string]interface{}{"output": string(out), "err": err.Error()},
         }}
     }
+    
     if !strings.Contains(strings.ToUpper(string(out)), strings.ToUpper(algorithm)) {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
             Message: fmt.Sprintf("%s not found in OpenSSL list", algorithm),
@@ -28,7 +35,6 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
     }
 
     pemFile := outPath + ".pem"
-    // Step 2: Generate PEM key
     genCmd := exec.Command("openssl", "genpkey", "-provider", "default", "-algorithm", algorithm, "-out", pemFile)
     genOut, err := genCmd.CombinedOutput()
     if err != nil || !fileExists(pemFile) {
@@ -38,7 +44,6 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
         }}
     }
 
-    // Step 3: Convert to DER
     derCmd := exec.Command("openssl", "pkey", "-in", pemFile, "-outform", "DER", "-out", outPath)
     derOut, err := derCmd.CombinedOutput()
     if err != nil || !fileExists(outPath) {
@@ -47,13 +52,18 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
             Context: map[string]interface{}{ "cmd": derCmd.String(), "output": string(derOut), "path": outPath, "algorithm": algorithm, "log": string(derOut) },
         }}
     }
-    // Step 4: Securely remove PEM
     _ = os.Remove(pemFile)
 
     return outPath, nil
 }
 
-// fileExists checks if file at path exists and is not a directory.
+// fileExists checks if the given path exists and is not a directory
+//
+// Parameters:
+//   path string: File path to check
+//
+// Returns:
+//   bool: true if path exists and is a file, false otherwise
 func fileExists(path string) bool {
     info, err := os.Stat(path)
     return err == nil && !info.IsDir()

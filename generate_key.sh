@@ -1,5 +1,27 @@
 #!/usr/bin/env bash
 
+###############################################################################
+# PQC Key Generator Orchestration Script
+# Orchestrates build, run, and cleanup for post-quantum key generation in an
+# isolated container
+#
+# Usage:
+#   ./generate_key.sh [--key|-k <algorithm>]
+#     --key/-k <string> : (Optional) Set KEYGEN_ALGORITHM (default: ML-KEM-512)
+#
+# Flow:
+#   - Parse CLI for algorithm
+#   - Ensure .env, override KEYGEN_ALGORITHM if -k/--key given
+#   - Export all config from .env
+#   - Prepare temp dir/volume for result
+#   - Build the container image if needed
+#   - Run generation in the container, validate output, print result path
+#   - Schedule temp Dir cleanup
+#
+# Returns:
+#   Absolute path to DER key or exits non-zero on error
+###############################################################################
+
 set -euo pipefail
 
 # ANSI color codes
@@ -14,6 +36,7 @@ warn()    { echo -e "${COLOR_WARN}$1${COLOR_RESET}" >&2; }
 error()   { echo -e "${COLOR_ERROR}$1${COLOR_RESET}" >&2; exit 1; }
 success() { echo -e "${COLOR_SUCCESS}$1${COLOR_RESET}" >&2; }
 
+# Absolute path to script directory
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$script_dir"
 
@@ -34,6 +57,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Ensures .env exists, updates KEYGEN_ALGORITHM, exports all config as env variables
 make_env() {
     [[ -f .env ]] && { info "Using existing .env"; } || {
         [[ -f .env.example ]] || error "No key/.env.example template found"
@@ -57,6 +81,7 @@ make_env() {
     done < <(grep -v '^#' .env | grep -v '^$')
 }
 
+# Returns path to temp output dir for key file volume mount
 resolve_tmp_dir() {
     local tmp
     if [[ -n "${TMP:-}" ]]; then
@@ -68,6 +93,7 @@ resolve_tmp_dir() {
     printf "%s" "$tmp"
 }
 
+# Launch background job to clean temp dir on TTL expiry
 clean_ttl() {
     local ttl="${TMP_TTL_SEC:-600}"
     local tmp_dir="$(resolve_tmp_dir)"
@@ -75,6 +101,7 @@ clean_ttl() {
     nohup bash -c "sleep $ttl && rm -rf '$tmp_dir'" > /dev/null 2>&1 &
 }
 
+# Create and export dir for output file container volume
 prepare_volume() {
     local tmp_dir="$(resolve_tmp_dir)"
     mkdir -p "$tmp_dir"
@@ -82,11 +109,13 @@ prepare_volume() {
     info "Preparing volume $TMP"
 }
 
+# Build Podman/OCI container image for keygen service
 build_image() {
     info "Building keygen container..."
     podman build -t $IMAGE_NAME "$script_dir" >/dev/null
 }
 
+# Run container, validate DER output, echo relative result path
 run_keygen() {
     info "Running container..."
     local rel_der_path
@@ -104,6 +133,7 @@ run_keygen() {
     echo "$rel_out_path"
 }
 
+# Main orchestration entrypoint
 main() {
     make_env
     prepare_volume
