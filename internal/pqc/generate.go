@@ -8,7 +8,10 @@ import (
     errors "pqckeygen/internal/errors"
 )
 
+// GenerateKey generates a cryptographic keypair as DER at outPath.
+// Algorithm type is defined by the 'algorithm' argument. Returns path if success, else a typed error.
 func GenerateKey(algorithm string, outPath string) (string, error) {
+    // Step 1: Check algorithm support via OpenSSL
     listCmd := exec.Command("openssl", "list", "-public-key-algorithms", "-provider", "default")
     out, err := listCmd.CombinedOutput()
     if err != nil {
@@ -25,28 +28,32 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
     }
 
     pemFile := outPath + ".pem"
+    // Step 2: Generate PEM key
     genCmd := exec.Command("openssl", "genpkey", "-provider", "default", "-algorithm", algorithm, "-out", pemFile)
     genOut, err := genCmd.CombinedOutput()
     if err != nil || !fileExists(pemFile) {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
             Message: fmt.Sprintf("Key generation via openssl failed for %s", algorithm),
-            Context: map[string]interface{}{ "cmd": genCmd.String(), "output": string(genOut), "path": pemFile, "algorithm": algorithm },
+            Context: map[string]interface{}{ "cmd": genCmd.String(), "output": string(genOut), "path": pemFile, "algorithm": algorithm, "log": string(genOut) },
         }}
     }
 
+    // Step 3: Convert to DER
     derCmd := exec.Command("openssl", "pkey", "-in", pemFile, "-outform", "DER", "-out", outPath)
     derOut, err := derCmd.CombinedOutput()
     if err != nil || !fileExists(outPath) {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
             Message: fmt.Sprintf("DER export failed for %s", algorithm),
-            Context: map[string]interface{}{ "cmd": derCmd.String(), "output": string(derOut), "path": outPath, "algorithm": algorithm },
+            Context: map[string]interface{}{ "cmd": derCmd.String(), "output": string(derOut), "path": outPath, "algorithm": algorithm, "log": string(derOut) },
         }}
     }
+    // Step 4: Securely remove PEM
     _ = os.Remove(pemFile)
 
     return outPath, nil
 }
 
+// fileExists checks if file at path exists and is not a directory.
 func fileExists(path string) bool {
     info, err := os.Stat(path)
     return err == nil && !info.IsDir()

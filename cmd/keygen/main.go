@@ -9,19 +9,18 @@ import (
     "pqckeygen/internal/config"
     pqc "pqckeygen/internal/pqc"
     validation "pqckeygen/internal/validation"
-    errors "pqckeygen/internal/errors"
     "os/exec"
 )
 
 func main() {
     cfg, err := config.Load()
     if err != nil {
-        log.Fatalf("%v", err)
+        log.Fatalf("[FATAL] %v", err)
     }
 
-    if os.Getenv("DEBUG") == "true" {
+    if cfg.Debug {
         log.Println("Listing available public-key algorithms from OpenSSL:")
-        listCmd := "openssl list -public-key-algorithms -provider oqsprovider"
+        listCmd := "openssl list -public-key-algorithms -provider default"
         output, derr := exec.Command("sh", "-c", listCmd).CombinedOutput()
         if derr == nil {
             log.Printf("%s", output)
@@ -34,15 +33,16 @@ func main() {
     if err != nil {
         log.Fatalf("Could not generate secure random: %v", err)
     }
+
     outPath := "/mnt/key/" + randomPart + ".der"
 
     genPath, err := pqc.GenerateKey(cfg.Algorithm, outPath)
     if err != nil {
-        logError("GENERATION ERROR:", err)
+        log.Printf("GENERATION ERROR: %v\n", err)
         os.Exit(1)
     }
     if vErr := validation.ValidateDERKey(genPath); vErr != nil {
-        logError("VALIDATION ERROR:", vErr)
+        log.Printf("VALIDATION ERROR: %v\n", vErr)
         os.Exit(1)
     }
     fmt.Println(genPath)
@@ -55,13 +55,4 @@ func randomHex(n int) (string, error) {
         return "", err
     }
     return hex.EncodeToString(b), nil
-}
-
-func logError(prefix string, err error) {
-    switch v := err.(type) {
-    case *errors.KeyGenError:
-        log.Printf("%s %s | Context: %+v\n", prefix, v.Message, v.Context)
-    default:
-        log.Printf("%s %v\n", prefix, err)
-    }
 }

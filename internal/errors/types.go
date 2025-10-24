@@ -14,7 +14,7 @@ func (e *KeyGenError) Error() string {
 }
 
 func (e *KeyGenError) LogContext() string {
-    return fmt.Sprintf("[KeyGenError] %s | Context: %v", e.Message, e.Context)
+    return fmt.Sprintf("KeyGenError %s | Context: %v", e.Message, e.Context)
 }
 
 type PQCNotSupportedError struct {

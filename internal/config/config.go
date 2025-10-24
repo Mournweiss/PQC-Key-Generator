@@ -7,6 +7,7 @@ import (
 
 type Config struct {
     Algorithm string
+    Debug     bool
 }
 
 func Load() (*Config, error) {
@@ -14,8 +15,11 @@ func Load() (*Config, error) {
     if alg == "" {
         return nil, fmt.Errorf("environment variable KEYGEN_ALGORITHM is required")
     }
+    debugEnv := os.Getenv("DEBUG")
+    debug := debugEnv == "true"
     cfg := &Config{
         Algorithm: alg,
+        Debug:     debug,
     }
     return cfg, nil
 }

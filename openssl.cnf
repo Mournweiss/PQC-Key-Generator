@@ -1,0 +1,16 @@
+openssl_conf = openssl_init
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+default = default_sect
+
+[default_sect]
+random = random_sect
+
+[random_sect]
+entropy_source = dev_urandom
+
+[dev_urandom]
+path = /dev/urandom
