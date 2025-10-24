@@ -23,7 +23,7 @@ Technology Stack:
 -   **OpenSSL** (3.5.0) compiled with post-quantum algorithm support
 -   **OQS-provider** (main branch)
 -   **liboqs** (main branch)
--   **Podman** or compatible containerization engine
+-   **Podman/Docker** or compatible containerization engine
 
 ## Usage
 
@@ -64,7 +64,7 @@ Technology Stack:
 
 ## Environment Variables
 
--   **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms))- **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms)..
+-   **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms)).
 
 -   **DEBUG**: Enable verbose OpenSSL debug output (`true` or `false`). Helpful for troubleshooting algorithm/provider issues. (Default: `false`)
 
