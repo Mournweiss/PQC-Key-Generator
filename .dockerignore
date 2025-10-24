@@ -22,3 +22,4 @@ test/
 .env*
 public/assets/
 vendor/bundle/
+**/.reuse/
