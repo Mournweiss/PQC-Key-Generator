@@ -41,21 +41,22 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$script_dir"
 
 ALG_ARG=""
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --key|-k)
-            if [[ -n "${2:-}" ]]; then
-                ALG_ARG="$2"
-                shift 2
-            else
-                error "Option $1 requires an argument (algorithm name)"
-            fi
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
+
+show_help() {
+    cat <<EOF
+Usage: ./generate_key.sh [OPTIONS]
+
+Post-quantum key generation in an isolated container using OpenSSL + OQS-provider.
+
+Options:
+  --key, -k <algorithm>   Set key generation algorithm (overrides KEYGEN_ALGORITHM)
+  --help, -h              Show this help message and exit
+
+Examples:
+  ./generate_key.sh --key ML-KEM-1024
+  CONTAINER_ENGINE=docker ./generate_key.sh
+EOF
+}
 
 # Ensures .env exists, updates KEYGEN_ALGORITHM, exports all config as env variables
 make_env() {
@@ -80,6 +81,22 @@ make_env() {
         fi
     done < <(grep -v '^#' .env | grep -v '^$')
 }
+
+# Detect best available containerization engine (docker/podman) or use env override
+detect_container_engine() {
+    if [[ -n "${CONTAINER_ENGINE:-}" ]]; then
+        info "Using user-specified containerization engine: $CONTAINER_ENGINE"
+    elif command -v docker &>/dev/null; then
+        CONTAINER_ENGINE=docker
+        info "Using docker as a containerization engine"
+    elif command -v podman &>/dev/null; then
+        CONTAINER_ENGINE=podman
+        info "Using podman as a containerization engine"
+    else
+        error "Neither Docker nor Podman found in \$PATH. Please install one or set CONTAINER_ENGINE."
+    fi
+}
+
 
 # Returns path to temp output dir for key file volume mount
 resolve_tmp_dir() {
@@ -109,17 +126,16 @@ prepare_volume() {
     info "Preparing volume $TMP"
 }
 
-# Build Podman/OCI container image for keygen service
+# Build container image for keygen service
 build_image() {
-    info "Building keygen container..."
-    podman build -t $IMAGE_NAME "$script_dir" >/dev/null
+    "$CONTAINER_ENGINE" build -t $IMAGE_NAME "$script_dir" >/dev/null
 }
 
 # Run container, validate DER output, echo relative result path
 run_keygen() {
     info "Running container..."
     local rel_der_path
-    rel_der_path=$(podman run --rm --env-file .env -v "$TMP:/mnt/key" $IMAGE_NAME)
+    rel_der_path=$("$CONTAINER_ENGINE" run --rm --env-file .env -v "$TMP:/mnt/key" $IMAGE_NAME)
     local out_name
     out_name="${rel_der_path#/mnt/key/}"
     local rel_out_path
@@ -136,6 +152,7 @@ run_keygen() {
 # Main orchestration entrypoint
 main() {
     make_env
+    detect_container_engine
     prepare_volume
     build_image
     local key_path
@@ -144,5 +161,25 @@ main() {
     echo "$abs_path"
     clean_ttl
 }
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --key|-k)
+            if [[ -n "${2:-}" ]]; then
+                ALG_ARG="$2"
+                shift 2
+            else
+                error "Option $1 requires an argument (algorithm name)"
+            fi
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 main
