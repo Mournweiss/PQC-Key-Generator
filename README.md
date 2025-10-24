@@ -23,7 +23,7 @@ Technology Stack:
 -   **OpenSSL** (3.5.0) compiled with post-quantum algorithm support
 -   **OQS-provider** (main branch)
 -   **liboqs** (main branch)
--   **Podman** or compatible container engine
+-   **Podman** or compatible containerization engine
 
 ## Usage
 
@@ -57,14 +57,14 @@ Technology Stack:
     Script outputs the absolute path to the generated DER file, for example:
 
     ```
-    /home/user/Desktop/PQC-Key-Generator/keygen_tmp/8bbbc7eedea23f0e4f23b4bf472fce20.der
+    /home/user/PQC-Key-Generator/keygen_tmp/8bbbc7eedea23f0e4f23b4bf472fce20.der
     ```
 
     > Key file in the temporary directory will be automatically deleted after the TTL set by `TMP_TTL_SEC` (default: 5 seconds).
 
 ## Environment Variables
 
--   **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`)
+-   **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms))- **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms)..
 
 -   **DEBUG**: Enable verbose OpenSSL debug output (`true` or `false`). Helpful for troubleshooting algorithm/provider issues. (Default: `false`)
 
