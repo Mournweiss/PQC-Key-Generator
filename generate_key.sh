@@ -17,11 +17,39 @@ success() { echo -e "${COLOR_SUCCESS}$1${COLOR_RESET}" >&2; }
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$script_dir"
 
+ALG_ARG=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --key|-k)
+            if [[ -n "${2:-}" ]]; then
+                ALG_ARG="$2"
+                shift 2
+            else
+                error "Option $1 requires an argument (algorithm name)"
+            fi
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
 make_env() {
     [[ -f .env ]] && { info "Using existing .env"; } || {
         [[ -f .env.example ]] || error "No key/.env.example template found"
         cp .env.example .env && success "Created default .env from .env.example"
     }
+    if [[ -z "$ALG_ARG" ]]; then
+        ALG_ARG="ML-KEM-512"
+        info "No algorithm specified, defaulting to ML-KEM-512"
+    fi
+    if grep -q '^KEYGEN_ALGORITHM=' .env; then
+        sed -i "s/^KEYGEN_ALGORITHM=.*/KEYGEN_ALGORITHM=$ALG_ARG/" .env
+        info "Overriding KEYGEN_ALGORITHM in .env with: $ALG_ARG"
+    else
+        echo "KEYGEN_ALGORITHM=$ALG_ARG" >> .env
+        info "Added KEYGEN_ALGORITHM to .env: $ALG_ARG"
+    fi
     while IFS='=' read -r key value; do
         if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ && -n "$value" ]]; then
             export "$key"="$value"
