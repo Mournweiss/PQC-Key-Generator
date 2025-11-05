@@ -67,12 +67,44 @@ Examples:
 EOF
 }
 
+# Ensure all variables from the template are present in the actual env file
+ensure_env_vars() {
+    local template_file="$1"
+    local env_file="$2"
+    local updated=0
+    info "Syncing .env with template: $template_file"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+        # Parse and trim var name
+        var_name="${line%%=*}"
+        var_name="$(echo "$var_name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        info "Checking if $var_name is present in $env_file ..."
+        if ! grep -Eq "^[[:space:]]*#?[[:space:]]*$var_name[[:space:]]*=" "$env_file"; then
+            last_char=$(tail -c1 "$env_file" 2>/dev/null || echo '')
+            if [[ "$last_char" != "" && "$last_char" != $'\n' ]]; then
+                echo >> "$env_file"
+            fi
+            echo "$line" >> "$env_file"
+            info "Added $var_name to $env_file"
+            updated=1
+        fi
+    done < "$template_file"
+    if [[ $updated -eq 1 ]]; then
+        info "Completed variable sync: $env_file updated"
+    else
+        info "No missing variables detected in $env_file"
+    fi
+}
+
 # Ensures .env exists, updates KEYGEN_ALGORITHM & KEYGEN_FORMAT, exports all config as env variables
 make_env() {
-    [[ -f .env ]] && { info "Using existing .env"; } || {
+    if [[ -f .env ]]; then
+        info "Using existing .env"
+        ensure_env_vars .env.example .env
+    else
         [[ -f .env.example ]] || error "No key/.env.example template found"
         cp .env.example .env && success "Created default .env from .env.example"
-    }
+    fi
     if [[ -z "$ALG_ARG" ]]; then
         ALG_ARG="ML-KEM-512"
         info "No algorithm specified, defaulting to ML-KEM-512"
