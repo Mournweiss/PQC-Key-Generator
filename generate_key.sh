@@ -189,36 +189,24 @@ run_keygen() {
     rel_key_path=$("$CONTAINER_ENGINE" run --rm --env-file .env -v "$TMP:/mnt/key" $IMAGE_NAME)
     if [[ "$rel_key_path" == *,* ]]; then
         IFS="," read -r file1 file2 <<< "$rel_key_path"
-        local out_name1 out_name2
-        out_name1="${file1#/mnt/key/}"
-        out_name2="${file2#/mnt/key/}"
-        local rel_out_path1 rel_out_path2
-        rel_out_path1="$(basename "$TMP")/$out_name1"
-        rel_out_path2="$(basename "$TMP")/$out_name2"
         local abs_path1 abs_path2
-        abs_path1="$script_dir/$rel_out_path1"
-        abs_path2="$script_dir/$rel_out_path2"
-        if [ ! -f "$abs_path1" ]; then
-            error "Key output file missing in container output: $abs_path1 (keypair mode)"
-        fi
-        if [ ! -f "$abs_path2" ]; then
-            error "Key output file missing in container output: $abs_path2 (keypair mode)"
-        fi
-        info "Key files ready: $rel_out_path1 and $rel_out_path2 (keypair mode)"
-        echo "$rel_out_path1"
-        echo "$rel_out_path2"
+        abs_path1="$TMP/${file1##*/}"
+        abs_path2="$TMP/${file2##*/}"
+        for abs in "$abs_path1" "$abs_path2"; do
+            if [ ! -f "$abs" ]; then
+                error "Key output file missing in container output: $abs (keypair mode)"
+            fi
+        done
+        info "Key files ready: $abs_path1 and $abs_path2 (keypair mode)"
+        echo "$abs_path1"
+        echo "$abs_path2"
     else
-        local out_name
-        out_name="${rel_key_path#/mnt/key/}"
-        local rel_out_path
-        rel_out_path="$(basename "$TMP")/$out_name"
-        local abs_path
-        abs_path="$script_dir/$rel_out_path"
+        abs_path="$TMP/${rel_key_path##*/}"
         if [ ! -f "$abs_path" ]; then
             error "Key output file missing in container output: $abs_path (format=$KEYGEN_FORMAT)"
         fi
-        info "Key file ready: $rel_out_path (format=$KEYGEN_FORMAT)"
-        echo "$rel_out_path"
+        info "Key file ready: $abs_path (format=$KEYGEN_FORMAT)"
+        echo "$abs_path"
     fi
 }
 
@@ -228,10 +216,7 @@ main() {
     detect_container_engine
     prepare_volume
     build_image
-    local key_path
-    key_path=$(run_keygen)
-    abs_path="$script_dir/$key_path"
-    echo "$abs_path"
+    run_keygen
     clean_ttl
 }
 
