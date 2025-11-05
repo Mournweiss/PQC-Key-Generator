@@ -48,6 +48,7 @@ Technology Stack:
     ```text
     --key, -k <algorithm>     Set key generation algorithm (overrides KEYGEN_ALGORITHM)
     --format, -f <format>     Set key file format (DER, PEM, ...), overrides KEYGEN_FORMAT
+    --keypair, -p             Enable keypair mode (outputs PEM public + DER private); disables --format/KEYGEN_FORMAT
     --help, -h                Show this help message and exit
 
     Supported formats depend on your build/runtime and are set by KEYGEN_FORMAT or --format. Default: DER.
@@ -64,6 +65,27 @@ Technology Stack:
 
     > Key file in the temporary directory will be automatically deleted after the TTL set by `TMP_TTL_SEC` (default: 5 seconds).
 
+## Keypair Mode
+
+**Key Pair Generation (PEM + DER) Mode**  
+Enables atomic generation and output of both PEM (private, used for public output) and DER (private) files. This is triggered by:
+
+```
+./generate_key.sh --key ML-KEM-1024 --keypair
+```
+
+-   PEM: <absolute PEM path>
+-   DER: <absolute DER path>
+
+**In this mode, --format (KEYGEN_FORMAT) is disabled!**
+
+### Output Example
+
+```
+/home/user/PQC-Key-Generator/keygen_tmp/abc1234.pem
+/home/user/PQC-Key-Generator/keygen_tmp/abc1234.der
+```
+
 ## Supported Key Formats
 
 -   DER (ASN.1 binary: .der)
@@ -74,6 +96,8 @@ Technology Stack:
 -   **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms)).
 
 -   **KEYGEN_FORMAT**: Output format for generated key (DER, PEM, ...). Must match a supported format handler. Default: DER. Controls the format of the exported key file.
+
+-   **KEYGEN_KEYPAIR**: `true` to enable pair mode, disables KEYGEN_FORMAT
 
 -   **DEBUG**: Enable verbose OpenSSL debug output (`true` or `false`). Helpful for troubleshooting algorithm/provider issues. (Default: `false`)
 
