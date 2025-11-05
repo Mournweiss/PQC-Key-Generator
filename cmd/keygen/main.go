@@ -15,9 +15,12 @@ import (
     "os/exec"
 )
 
-// main is the entry point for the keygen CLI that coordinates key generation and prints DER key path
+// Entry point for the keygen CLI.
 //
-// Exits non-zero on error
+// Loads configuration, invokes format-agnostic key generation, and validates the result.
+//
+// Returns:
+//   (os.Exit) with 0 on success, 1 on error (fatal/logged to stderr)
 func main() {
     cfg, err := config.Load()
     if err != nil {
@@ -40,14 +43,13 @@ func main() {
         log.Fatalf("Could not generate secure random: %v", err)
     }
 
-    outPath := "/mnt/key/" + randomPart + ".der"
-
-    genPath, err := pqc.GenerateKey(cfg.Algorithm, outPath)
+    baseOutPath := "/mnt/key/" + randomPart
+    genPath, err := pqc.GenerateKey(cfg.Algorithm, string(cfg.Format), baseOutPath)
     if err != nil {
         log.Printf("GENERATION ERROR: %v\n", err)
         os.Exit(1)
     }
-    if vErr := validation.ValidateDERKey(genPath); vErr != nil {
+    if vErr := validation.ValidateKeyByFormat(string(cfg.Format), genPath); vErr != nil {
         log.Printf("VALIDATION ERROR: %v\n", vErr)
         os.Exit(1)
     }

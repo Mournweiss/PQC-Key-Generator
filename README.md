@@ -40,31 +40,40 @@ Technology Stack:
     ```bash
     chmod +x generate_key.sh
 
-    ./generate_key.sh --key ML-KEM-1024
+    ./generate_key.sh --key ML-KEM-1024 --format DER
     ```
 
-    This script will:
+    ### Arguments:
 
-    - Setup and export env variables, update algorithm if `--key|-k` is passed
-    - Prepare temp volumes for output
-    - Build and run a container with selected algorithm
-    - Output the absolute path to the generated DER key
+    ```text
+    --key, -k <algorithm>     Set key generation algorithm (overrides KEYGEN_ALGORITHM)
+    --format, -f <format>     Set key file format (DER, PEM, ...), overrides KEYGEN_FORMAT
+    --help, -h                Show this help message and exit
 
-    > By default, if no algorithm is specified via the CLI `--key` option or in the environment, the generator uses `ML-KEM-512`.
+    Supported formats depend on your build/runtime and are set by KEYGEN_FORMAT or --format. Default: DER.
+    ```
 
 3. Get absolute path to key file:
 
-    Script outputs the absolute path to the generated DER file, for example:
+    Script outputs the absolute path to the generated key file, for example:
 
     ```
     /home/user/PQC-Key-Generator/keygen_tmp/8bbbc7eedea23f0e4f23b4bf472fce20.der
+    /home/user/PQC-Key-Generator/keygen_tmp/83ac534ff0e9286f1f8d524dcb3517a8.pem
     ```
 
     > Key file in the temporary directory will be automatically deleted after the TTL set by `TMP_TTL_SEC` (default: 5 seconds).
 
+## Supported Key Formats
+
+-   DER (ASN.1 binary: .der)
+-   PEM (Privacy Enhanced Mail: .pem)
+
 ## Environment Variables
 
 -   **KEYGEN_ALGORITHM**: The PQC algorithm for key generation. Must be supported by the linked OpenSSL build. (Default: `ML-KEM-512`) (See a list of supported algorithms in OQS-provider [here](https://github.com/open-quantum-safe/oqs-provider#algorithms)).
+
+-   **KEYGEN_FORMAT**: Output format for generated key (DER, PEM, ...). Must match a supported format handler. Default: DER. Controls the format of the exported key file.
 
 -   **DEBUG**: Enable verbose OpenSSL debug output (`true` or `false`). Helpful for troubleshooting algorithm/provider issues. (Default: `false`)
 
@@ -73,3 +82,5 @@ Technology Stack:
 -   **TMP**: Directory for temporary key output (mapped as container volume). Ensure it is writable and persistent for duration of operation. (Default: `keygen_tmp`)
 
 -   **TMP_TTL_SEC**: Time (in seconds) after which the temporary directory and its contents are auto-cleaned up by the orchestration script. Increase for debugging or persistent storage. (Default: `5`)
+
+-   **CONTAINER_ENGINE**: Override backend autodetection; set to `docker` or `podman` to specify, else leave empty for automatic selection.

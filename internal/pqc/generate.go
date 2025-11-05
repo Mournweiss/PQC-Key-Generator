@@ -6,23 +6,30 @@ package pqc
 
 import (
     "fmt"
-    "os"
     "os/exec"
     "strings"
-    errors "pqckeygen/internal/errors"
-    utils "pqckeygen/internal/utils"
+    cfgmod "pqckeygen/internal/config"
+    "pqckeygen/internal/errors"
+    fmtmod "pqckeygen/internal/formats"
 )
 
-// GenerateKey generates a cryptographic keypair as DER at outPath using the supplied algorithm.
+// GenerateKey is the public factory for cryptographic key generation and validation (format-agnostic).
 //
-// Parameters:
-//   algorithm string: The algorithm name as required by OpenSSL (case-insensitive match)
-//   outPath   string: Target DER file path (volume-mapped, will also write <outPath>.pem temporarily)
+// Params:
+//   algorithm (string): Name of the algorithm from OpenSSL's list.
+//   format    (string): Desired key export format (must be registered).
+//   outPath   (string): Output filesystem path for the generated key file.
 //
 // Returns:
-//   (string)  - Path to successful DER key file (same as outPath)
-//   (error)   - If generation fails due to OpenSSL or unsupported algorithm
-func GenerateKey(algorithm string, outPath string) (string, error) {
+//   (string): Path to the successfully generated key file.
+//   (error):  If generation or validation fails, details as error.
+func GenerateKey(algorithm string, format string, outPath string) (string, error) {
+    if !cfgmod.IsSupportedFormat(format) {
+        return "", &errors.PQCNotSupportedError{errors.KeyGenError{
+            Message: fmt.Sprintf("Unsupported format: %s", format),
+            Context: map[string]interface{}{"algorithm": algorithm, "format": format},
+        }}
+    }
     listCmd := exec.Command("openssl", "list", "-public-key-algorithms", "-provider", "default")
     out, err := listCmd.CombinedOutput()
     if err != nil {
@@ -31,33 +38,25 @@ func GenerateKey(algorithm string, outPath string) (string, error) {
             Context: map[string]interface{}{"output": string(out), "err": err.Error()},
         }}
     }
-    
     if !strings.Contains(strings.ToUpper(string(out)), strings.ToUpper(algorithm)) {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
-            Message: fmt.Sprintf("%s not found in OpenSSL list", algorithm),
-            Context: map[string]interface{}{ "output": string(out), "algorithm": algorithm },
+            Message: fmt.Sprintf("%s not found in OpenSSL supported list", algorithm),
+            Context: map[string]interface{}{ "output": string(out), "algorithm": algorithm},
         }}
     }
-
-    pemFile := outPath + ".pem"
-    genCmd := exec.Command("openssl", "genpkey", "-provider", "default", "-algorithm", algorithm, "-out", pemFile)
-    genOut, err := genCmd.CombinedOutput()
-    if err != nil || !utils.FileExists(pemFile) {
+    worker, ok := fmtmod.GetFormatWorker(format)
+    if !ok || worker == nil {
         return "", &errors.PQCNotSupportedError{errors.KeyGenError{
-            Message: fmt.Sprintf("Key generation via openssl failed for %s", algorithm),
-            Context: map[string]interface{}{ "cmd": genCmd.String(), "output": string(genOut), "path": pemFile, "algorithm": algorithm, "log": string(genOut) },
+            Message: fmt.Sprintf("No worker registered for format: %s (registry not found)", format),
+            Context: map[string]interface{}{"algorithm": algorithm, "format": format},
         }}
     }
-
-    derCmd := exec.Command("openssl", "pkey", "-in", pemFile, "-outform", "DER", "-out", outPath)
-    derOut, err := derCmd.CombinedOutput()
-    if err != nil || !utils.FileExists(outPath) {
-        return "", &errors.PQCNotSupportedError{errors.KeyGenError{
-            Message: fmt.Sprintf("DER export failed for %s", algorithm),
-            Context: map[string]interface{}{ "cmd": derCmd.String(), "output": string(derOut), "path": outPath, "algorithm": algorithm, "log": string(derOut) },
-        }}
+    outPathRes, err := worker.Generate(algorithm, outPath)
+    if err != nil {
+        return "", err
     }
-    _ = os.Remove(pemFile)
-
-    return outPath, nil
+    if vErr := worker.Validate(outPathRes); vErr != nil {
+        return "", vErr
+    }
+    return outPathRes, nil
 }

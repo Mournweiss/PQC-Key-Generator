@@ -9,7 +9,7 @@ coverage.out
 
 # IDE files
 .vscode/
-**/.reuse/
+**/reuse/
 *.swp
 *.swo
 *~

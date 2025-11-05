@@ -6,12 +6,16 @@
 # isolated container
 #
 # Usage:
-#   ./generate_key.sh [--key|-k <algorithm>]
-#     --key/-k <string> : (Optional) Set KEYGEN_ALGORITHM (default: ML-KEM-512)
+#   ./generate_key.sh [--key|-k <algorithm>] [--format|-f <format>]
+#     --key/-k <string>    : (Optional) Set KEYGEN_ALGORITHM (default: ML-KEM-512)
+#     --format/-f <string> : (Optional) Set KEYGEN_FORMAT ('DER', 'PEM', ...) (default: DER)
+#
+# Example:
+#   ./generate_key.sh --key ML-KEM-1024 --format PEM
 #
 # Flow:
-#   - Parse CLI for algorithm
-#   - Ensure .env, override KEYGEN_ALGORITHM if -k/--key given
+#   - Parse CLI for algorithm and format
+#   - Ensure .env, override KEYGEN_ALGORITHM/KEYGEN_FORMAT if flags given
 #   - Export all config from .env
 #   - Prepare temp dir/volume for result
 #   - Build the container image if needed
@@ -19,7 +23,8 @@
 #   - Schedule temp Dir cleanup
 #
 # Returns:
-#   Absolute path to DER key or exits non-zero on error
+#   Absolute path to generated key (format depends on settings: .der, .pem, ...),
+#   or exits non-zero on error
 ###############################################################################
 
 set -euo pipefail
@@ -40,7 +45,9 @@ success() { echo -e "${COLOR_SUCCESS}$1${COLOR_RESET}" >&2; }
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$script_dir"
 
+# Vars for CLI parsing
 ALG_ARG=""
+FORMAT_ARG=""
 
 show_help() {
     cat <<EOF
@@ -49,16 +56,18 @@ Usage: ./generate_key.sh [OPTIONS]
 Post-quantum key generation in an isolated container using OpenSSL + OQS-provider.
 
 Options:
-  --key, -k <algorithm>   Set key generation algorithm (overrides KEYGEN_ALGORITHM)
-  --help, -h              Show this help message and exit
+  --key, -k <algorithm>     Set key generation algorithm (overrides KEYGEN_ALGORITHM)
+  --format, -f <format>     Set key file format (DER, PEM, ...), overrides KEYGEN_FORMAT
+  --help, -h                Show this help message and exit
 
 Examples:
-  ./generate_key.sh --key ML-KEM-1024
-  CONTAINER_ENGINE=docker ./generate_key.sh
+  ./generate_key.sh --key ML-KEM-1024 --format PEM
+  CONTAINER_ENGINE=docker ./generate_key.sh -f DER
+  Supported formats depend on your build/runtime and are set by KEYGEN_FORMAT or --format. Default: DER
 EOF
 }
 
-# Ensures .env exists, updates KEYGEN_ALGORITHM, exports all config as env variables
+# Ensures .env exists, updates KEYGEN_ALGORITHM & KEYGEN_FORMAT, exports all config as env variables
 make_env() {
     [[ -f .env ]] && { info "Using existing .env"; } || {
         [[ -f .env.example ]] || error "No key/.env.example template found"
@@ -75,6 +84,30 @@ make_env() {
         echo "KEYGEN_ALGORITHM=$ALG_ARG" >> .env
         info "Added KEYGEN_ALGORITHM to .env: $ALG_ARG"
     fi
+    final_format=""
+    if [[ -n "$FORMAT_ARG" ]]; then
+        if grep -q '^KEYGEN_FORMAT=' .env; then
+            sed -i "s/^KEYGEN_FORMAT=.*/KEYGEN_FORMAT=$FORMAT_ARG/" .env
+            info "Overriding KEYGEN_FORMAT in .env with: $FORMAT_ARG"
+            final_format="$FORMAT_ARG"
+        else
+            echo "KEYGEN_FORMAT=$FORMAT_ARG" >> .env
+            info "Added KEYGEN_FORMAT to .env: $FORMAT_ARG"
+            final_format="$FORMAT_ARG"
+        fi
+    else
+        line=$(grep '^KEYGEN_FORMAT=' .env || true)
+        if [[ -n "$line" ]]; then
+            final_format="${line#KEYGEN_FORMAT=}"
+            info "Using key format from .env: $final_format"
+        else
+            final_format="DER"
+            echo "KEYGEN_FORMAT=DER" >> .env
+            info "No format specified, default to DER"
+        fi
+    fi
+    export KEYGEN_FORMAT="$final_format"
+    info "Final key format for generation: $final_format"
     while IFS='=' read -r key value; do
         if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ && -n "$value" ]]; then
             export "$key"="$value"
@@ -134,18 +167,18 @@ build_image() {
 # Run container, validate DER output, echo relative result path
 run_keygen() {
     info "Running container..."
-    local rel_der_path
-    rel_der_path=$("$CONTAINER_ENGINE" run --rm --env-file .env -v "$TMP:/mnt/key" $IMAGE_NAME)
+    local rel_key_path
+    rel_key_path=$("$CONTAINER_ENGINE" run --rm --env-file .env -v "$TMP:/mnt/key" $IMAGE_NAME)
     local out_name
-    out_name="${rel_der_path#/mnt/key/}"
+    out_name="${rel_key_path#/mnt/key/}"
     local rel_out_path
     rel_out_path="$(basename "$TMP")/$out_name"
     local abs_path
     abs_path="$script_dir/$rel_out_path"
     if [ ! -f "$abs_path" ]; then
-        error "Key DER file missing in container output: $abs_path"
+        error "Key output file missing in container output: $abs_path (format=$KEYGEN_FORMAT)"
     fi
-    info "Key file ready: $rel_out_path"
+    info "Key file ready: $rel_out_path (format=$KEYGEN_FORMAT)"
     echo "$rel_out_path"
 }
 
@@ -162,6 +195,7 @@ main() {
     clean_ttl
 }
 
+# CLI argument parsing (support --format/-f)
 while [[ $# -gt 0 ]]; do
     case $1 in
         --key|-k)
@@ -170,6 +204,14 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 error "Option $1 requires an argument (algorithm name)"
+            fi
+            ;;
+        --format|-f)
+            if [[ -n "${2:-}" ]]; then
+                FORMAT_ARG="$2"
+                shift 2
+            else
+                error "Option $1 requires an argument (format: DER or PEM)"
             fi
             ;;
         --help|-h)

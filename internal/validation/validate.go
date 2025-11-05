@@ -6,42 +6,21 @@ package validation
 
 import (
     "fmt"
-    "os"
-    errors "pqckeygen/internal/errors"
+    "pqckeygen/internal/formats"
 )
 
-const MinDERKeySize = 256
-
-// ValidateDERKey ensures the DER key file at filePath exists and meets the minimum size constraint
+// ValidateKeyByFormat performs validation using the registered format worker for the given key type.
 //
-// Parameters:
-//   filePath string: Path to DER file to validate
+// Params:
+//   format   (string): Format string (must match a registered worker, e.g., "DER", "PEM").
+//   filePath (string): Path to the key file to validate.
 //
 // Returns:
-//   error:   KeyValidationError (typed) if file does not exist or is too small
-func ValidateDERKey(filePath string) error {
-    stat, err := os.Stat(filePath)
-
-    if os.IsNotExist(err) {
-        return &errors.KeyValidationError{errors.KeyGenError{
-            Message: fmt.Sprintf("DER key file %q does not exist", filePath),
-            Context: map[string]interface{}{"file": filePath},
-        }}
+//   (error):  If format is not registered or validation fails, with error describing the reason; nil if valid.
+func ValidateKeyByFormat(format string, filePath string) error {
+    worker, ok := formats.GetFormatWorker(format)
+    if !ok || worker == nil {
+        return fmt.Errorf("validation failed: no such key format registered: %s", format)
     }
-
-    if err != nil {
-        return &errors.KeyValidationError{errors.KeyGenError{
-            Message: "Could not stat DER key file",
-            Context: map[string]interface{}{"file": filePath, "err": err.Error()},
-        }}
-    }
-
-    if stat.Size() < MinDERKeySize {
-        return &errors.KeyValidationError{errors.KeyGenError{
-            Message: fmt.Sprintf("DER key file is too small (%d bytes, min %d)", stat.Size(), MinDERKeySize),
-            Context: map[string]interface{}{"file": filePath, "size": stat.Size()},
-        }}
-    }
-    
-    return nil
+    return worker.Validate(filePath)
 }
