@@ -74,9 +74,6 @@ Enables atomic generation and output of both PEM (private, used for public outpu
 ./generate_key.sh --key ML-KEM-1024 --keypair
 ```
 
--   PEM: <absolute PEM path>
--   DER: <absolute DER path>
-
 **In this mode, --format (KEYGEN_FORMAT) is disabled!**
 
 ### Output Example
