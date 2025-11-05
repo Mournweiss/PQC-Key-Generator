@@ -6,16 +6,18 @@
 # isolated container
 #
 # Usage:
-#   ./generate_key.sh [--key|-k <algorithm>] [--format|-f <format>]
+#   ./generate_key.sh [--key|-k <algorithm>] [--format|-f <format>] [--keypair|-p]
 #     --key/-k <string>    : (Optional) Set KEYGEN_ALGORITHM (default: ML-KEM-512)
 #     --format/-f <string> : (Optional) Set KEYGEN_FORMAT ('DER', 'PEM', ...) (default: DER)
+#     --keypair/-p         : (Optional) Enable keypair mode (outputs PEM+DER, disables --format/KEYGEN_FORMAT)
 #
 # Example:
-#   ./generate_key.sh --key ML-KEM-1024 --format PEM
+#   ./generate_key.sh --key ML-KEM-1024 --keypair
+#   ./generate_key.sh --key ML-KEM-1024 --format DER
 #
 # Flow:
-#   - Parse CLI for algorithm and format
-#   - Ensure .env, override KEYGEN_ALGORITHM/KEYGEN_FORMAT if flags given
+#   - Parse CLI for algorithm, format, and keypair mode
+#   - Ensure .env, override KEYGEN_ALGORITHM/KEYGEN_FORMAT/KEYGEN_KEYPAIR if flags given
 #   - Export all config from .env
 #   - Prepare temp dir/volume for result
 #   - Build the container image if needed
@@ -23,7 +25,7 @@
 #   - Schedule temp Dir cleanup
 #
 # Returns:
-#   Absolute path to generated key (format depends on settings: .der, .pem, ...),
+#   Absolute path to generated key(s),
 #   or exits non-zero on error
 ###############################################################################
 
@@ -48,6 +50,7 @@ cd "$script_dir"
 # Vars for CLI parsing
 ALG_ARG=""
 FORMAT_ARG=""
+KEYPAIR_MODE=""
 
 show_help() {
     cat <<EOF
@@ -58,11 +61,13 @@ Post-quantum key generation in an isolated container using OpenSSL + OQS-provide
 Options:
   --key, -k <algorithm>     Set key generation algorithm (overrides KEYGEN_ALGORITHM)
   --format, -f <format>     Set key file format (DER, PEM, ...), overrides KEYGEN_FORMAT
+  --keypair, -p             Enable keypair mode (outputs PEM public + DER private), disables --format and KEYGEN_FORMAT
   --help, -h                Show this help message and exit
 
 Examples:
   ./generate_key.sh --key ML-KEM-1024 --format PEM
-  CONTAINER_ENGINE=docker ./generate_key.sh -f DER
+  ./generate_key.sh --key ML-KEM-1024 --keypair
+  CONTAINER_ENGINE=docker ./generate_key.sh -p
   Supported formats depend on your build/runtime and are set by KEYGEN_FORMAT or --format. Default: DER
 EOF
 }
@@ -105,41 +110,22 @@ make_env() {
         [[ -f .env.example ]] || error "No key/.env.example template found"
         cp .env.example .env && success "Created default .env from .env.example"
     fi
-    if [[ -z "$ALG_ARG" ]]; then
-        ALG_ARG="ML-KEM-512"
-        info "No algorithm specified, defaulting to ML-KEM-512"
-    fi
-    if grep -q '^KEYGEN_ALGORITHM=' .env; then
+    if [[ -n "$ALG_ARG" ]]; then
         sed -i "s/^KEYGEN_ALGORITHM=.*/KEYGEN_ALGORITHM=$ALG_ARG/" .env
         info "Overriding KEYGEN_ALGORITHM in .env with: $ALG_ARG"
-    else
-        echo "KEYGEN_ALGORITHM=$ALG_ARG" >> .env
-        info "Added KEYGEN_ALGORITHM to .env: $ALG_ARG"
     fi
-    final_format=""
-    if [[ -n "$FORMAT_ARG" ]]; then
-        if grep -q '^KEYGEN_FORMAT=' .env; then
-            sed -i "s/^KEYGEN_FORMAT=.*/KEYGEN_FORMAT=$FORMAT_ARG/" .env
+    if [[ -n "$KEYPAIR_MODE" ]]; then
+        sed -i "/^KEYGEN_FORMAT=/d" .env
+        sed -i "s/^KEYGEN_KEYPAIR=.*/KEYGEN_KEYPAIR=true/" .env || echo "KEYGEN_KEYPAIR=true" >> .env
+        info "Enabled keypair mode (KEYGEN_KEYPAIR=true), disabling individual format settings."
+    else
+        sed -i "/^KEYGEN_KEYPAIR=/d" .env
+        if [[ -n "$FORMAT_ARG" ]]; then
+            sed -i "s/^KEYGEN_FORMAT=.*/KEYGEN_FORMAT=$FORMAT_ARG/" .env || echo "KEYGEN_FORMAT=$FORMAT_ARG" >> .env
             info "Overriding KEYGEN_FORMAT in .env with: $FORMAT_ARG"
-            final_format="$FORMAT_ARG"
-        else
-            echo "KEYGEN_FORMAT=$FORMAT_ARG" >> .env
-            info "Added KEYGEN_FORMAT to .env: $FORMAT_ARG"
-            final_format="$FORMAT_ARG"
-        fi
-    else
-        line=$(grep '^KEYGEN_FORMAT=' .env || true)
-        if [[ -n "$line" ]]; then
-            final_format="${line#KEYGEN_FORMAT=}"
-            info "Using key format from .env: $final_format"
-        else
-            final_format="DER"
-            echo "KEYGEN_FORMAT=DER" >> .env
-            info "No format specified, default to DER"
         fi
     fi
-    export KEYGEN_FORMAT="$final_format"
-    info "Final key format for generation: $final_format"
+    # Экспорт переменных из .env
     while IFS='=' read -r key value; do
         if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ && -n "$value" ]]; then
             export "$key"="$value"
@@ -201,17 +187,39 @@ run_keygen() {
     info "Running container..."
     local rel_key_path
     rel_key_path=$("$CONTAINER_ENGINE" run --rm --env-file .env -v "$TMP:/mnt/key" $IMAGE_NAME)
-    local out_name
-    out_name="${rel_key_path#/mnt/key/}"
-    local rel_out_path
-    rel_out_path="$(basename "$TMP")/$out_name"
-    local abs_path
-    abs_path="$script_dir/$rel_out_path"
-    if [ ! -f "$abs_path" ]; then
-        error "Key output file missing in container output: $abs_path (format=$KEYGEN_FORMAT)"
+    if [[ "$rel_key_path" == *,* ]]; then
+        IFS="," read -r file1 file2 <<< "$rel_key_path"
+        local out_name1 out_name2
+        out_name1="${file1#/mnt/key/}"
+        out_name2="${file2#/mnt/key/}"
+        local rel_out_path1 rel_out_path2
+        rel_out_path1="$(basename "$TMP")/$out_name1"
+        rel_out_path2="$(basename "$TMP")/$out_name2"
+        local abs_path1 abs_path2
+        abs_path1="$script_dir/$rel_out_path1"
+        abs_path2="$script_dir/$rel_out_path2"
+        if [ ! -f "$abs_path1" ]; then
+            error "Key output file missing in container output: $abs_path1 (keypair mode)"
+        fi
+        if [ ! -f "$abs_path2" ]; then
+            error "Key output file missing in container output: $abs_path2 (keypair mode)"
+        fi
+        info "Key files ready: $rel_out_path1 and $rel_out_path2 (keypair mode)"
+        echo "$rel_out_path1"
+        echo "$rel_out_path2"
+    else
+        local out_name
+        out_name="${rel_key_path#/mnt/key/}"
+        local rel_out_path
+        rel_out_path="$(basename "$TMP")/$out_name"
+        local abs_path
+        abs_path="$script_dir/$rel_out_path"
+        if [ ! -f "$abs_path" ]; then
+            error "Key output file missing in container output: $abs_path (format=$KEYGEN_FORMAT)"
+        fi
+        info "Key file ready: $rel_out_path (format=$KEYGEN_FORMAT)"
+        echo "$rel_out_path"
     fi
-    info "Key file ready: $rel_out_path (format=$KEYGEN_FORMAT)"
-    echo "$rel_out_path"
 }
 
 # Main orchestration entrypoint
@@ -227,7 +235,7 @@ main() {
     clean_ttl
 }
 
-# CLI argument parsing (support --format/-f)
+# CLI argument parsing (support --format/-f and --keypair/-p)
 while [[ $# -gt 0 ]]; do
     case $1 in
         --key|-k)
@@ -245,6 +253,10 @@ while [[ $# -gt 0 ]]; do
             else
                 error "Option $1 requires an argument (format: DER or PEM)"
             fi
+            ;;
+        --keypair|-p)
+            KEYPAIR_MODE="true"
+            shift
             ;;
         --help|-h)
             show_help

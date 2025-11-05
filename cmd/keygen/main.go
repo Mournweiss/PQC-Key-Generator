@@ -10,7 +10,6 @@ import (
     "os"
     "pqckeygen/internal/config"
     pqc "pqckeygen/internal/pqc"
-    validation "pqckeygen/internal/validation"
     utils "pqckeygen/internal/utils"
     "os/exec"
 )
@@ -44,14 +43,22 @@ func main() {
     }
 
     baseOutPath := "/mnt/key/" + randomPart
-    genPath, err := pqc.GenerateKey(cfg.Algorithm, string(cfg.Format), baseOutPath)
+    genResult, err := pqc.GenerateKey(cfg, baseOutPath)
     if err != nil {
         log.Printf("GENERATION ERROR: %v\n", err)
         os.Exit(1)
     }
-    if vErr := validation.ValidateKeyByFormat(string(cfg.Format), genPath); vErr != nil {
-        log.Printf("VALIDATION ERROR: %v\n", vErr)
-        os.Exit(1)
+    if cfg.KeyPairMode {
+        results := genResult
+        var pemPath, derPath string
+        n, _ := fmt.Sscanf(results, "%[^,],%s", &pemPath, &derPath)
+        if n == 2 {
+            fmt.Println(pemPath)
+            fmt.Println(derPath)
+        } else {
+            fmt.Printf("%s\n", results)
+        }
+    } else {
+        fmt.Println(genResult)
     }
-    fmt.Println(genPath)
 }

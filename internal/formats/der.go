@@ -26,24 +26,31 @@ func init() {
 }
 
 // Generate creates and exports a key in DER format using OpenSSL.
+// If KEYGEN_KEYPAIR=true in env, preserves the PEM file for use as public key (does not remove PEM after export). Otherwise, deletes PEM.
 //
 // Params:
-//   algorithm (string): OpenSSL algorithm name.
-//   baseOutPath   (string): Base path (no extension) for resulting files.
+//   algorithm   (string): OpenSSL algorithm name for key generation.
+//   baseOutPath (string): Base path (without extension) for resulting files.
 //
 // Returns:
-//   (string): Final DER file path (always with .der extension).
-//   (error):  On any OpenSSL/IO error or unsuccessful key export.
+//   (string): Absolute path to the created DER file (.der extension).
+//   (error):  If generation or export fails, or DER file is invalid/missing.
 func (w *DERWorker) Generate(algorithm string, baseOutPath string) (string, error) {
     pemFile := baseOutPath + ".pem"
     derFile := baseOutPath + ".der"
-    genCmd := exec.Command("openssl", "genpkey", "-provider", "default", "-algorithm", algorithm, "-out", pemFile)
-    genOut, err := genCmd.CombinedOutput()
-    if err != nil || !utils.FileExists(pemFile) {
-        return "", &errors.PQCNotSupportedError{errors.KeyGenError{
-            Message: fmt.Sprintf("Key generation via openssl failed for %s (DER)", algorithm),
-            Context: map[string]interface{}{ "cmd": genCmd.String(), "output": string(genOut), "path": pemFile, "algorithm": algorithm },
-        }}
+    preservePEM := false
+    if val, ok := os.LookupEnv("KEYGEN_KEYPAIR"); ok && val == "true" {
+        preservePEM = true
+    }
+    if !utils.FileExists(pemFile) {
+        genCmd := exec.Command("openssl", "genpkey", "-provider", "default", "-algorithm", algorithm, "-out", pemFile)
+        genOut, err := genCmd.CombinedOutput()
+        if err != nil || !utils.FileExists(pemFile) {
+            return "", &errors.PQCNotSupportedError{errors.KeyGenError{
+                Message: fmt.Sprintf("Key generation via openssl failed for %s (DER)", algorithm),
+                Context: map[string]interface{}{ "cmd": genCmd.String(), "output": string(genOut), "path": pemFile, "algorithm": algorithm },
+            }}
+        }
     }
     derCmd := exec.Command("openssl", "pkey", "-in", pemFile, "-outform", "DER", "-out", derFile)
     derOut, err := derCmd.CombinedOutput()
@@ -53,7 +60,9 @@ func (w *DERWorker) Generate(algorithm string, baseOutPath string) (string, erro
             Context: map[string]interface{}{ "cmd": derCmd.String(), "output": string(derOut), "path": derFile, "algorithm": algorithm },
         }}
     }
-    _ = os.Remove(pemFile)
+    if !preservePEM {
+        _ = os.Remove(pemFile) // Only remove PEM if we're NOT in keypair mode
+    }
     return derFile, nil
 }
 
