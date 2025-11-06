@@ -192,7 +192,6 @@ run_keygen() {
                 error "Key output file missing in container output: $abs (keypair mode)"
             fi
         done
-        info "Key files ready: $abs_path1 and $abs_path2 (keypair mode)"
         echo "$abs_path1"
         echo "$abs_path2"
     else
