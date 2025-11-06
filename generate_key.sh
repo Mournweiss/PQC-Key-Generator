@@ -199,7 +199,6 @@ run_keygen() {
         if [ ! -f "$abs_path" ]; then
             error "Key output file missing in container output: $abs_path (format=$KEYGEN_FORMAT)"
         fi
-        info "Key file ready: $abs_path (format=$KEYGEN_FORMAT)"
         echo "$abs_path"
     fi
 }
