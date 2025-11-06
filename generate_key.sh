@@ -110,6 +110,9 @@ make_env() {
         [[ -f .env.example ]] || error "No key/.env.example template found"
         cp .env.example .env && success "Created default .env from .env.example"
     fi
+    local session_ts="$(date +%s%N)_$RANDOM"
+    export TMP="$PWD/keygen_tmp/session_$session_ts"
+    info "Session unique TMP dir: $TMP"
     if [[ -n "$ALG_ARG" ]]; then
         sed -i "s/^KEYGEN_ALGORITHM=.*/KEYGEN_ALGORITHM=$ALG_ARG/" .env
         info "Overriding KEYGEN_ALGORITHM in .env with: $ALG_ARG"
@@ -125,7 +128,6 @@ make_env() {
             info "Overriding KEYGEN_FORMAT in .env with: $FORMAT_ARG"
         fi
     fi
-    # Экспорт переменных из .env
     while IFS='=' read -r key value; do
         if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ && -n "$value" ]]; then
             export "$key"="$value"
@@ -151,27 +153,20 @@ detect_container_engine() {
 
 # Returns path to temp output dir for key file volume mount
 resolve_tmp_dir() {
-    local tmp
-    if [[ -n "${TMP:-}" ]]; then
-        tmp="${TMP// /}"
-        [[ "$tmp" == /* ]] || tmp="$script_dir/$tmp"
-    else
-        tmp="$script_dir/keygen_tmp"
-    fi
-    printf "%s" "$tmp"
+    printf "%s" "$TMP"
 }
 
 # Launch background job to clean temp dir on TTL expiry
 clean_ttl() {
     local ttl="${TMP_TTL_SEC:-600}"
-    local tmp_dir="$(resolve_tmp_dir)"
+    local tmp_dir="$TMP"
     info "Setting timer to auto-clean TMP in $ttl seconds for $tmp_dir"
     nohup bash -c "sleep $ttl && rm -rf '$tmp_dir'" > /dev/null 2>&1 &
 }
 
 # Create and export dir for output file container volume
 prepare_volume() {
-    local tmp_dir="$(resolve_tmp_dir)"
+    local tmp_dir="$TMP"
     mkdir -p "$tmp_dir"
     export TMP="$tmp_dir"
     info "Preparing volume $TMP"
@@ -197,6 +192,7 @@ run_keygen() {
                 error "Key output file missing in container output: $abs (keypair mode)"
             fi
         done
+        info "Key files ready: $abs_path1 and $abs_path2 (keypair mode)"
         echo "$abs_path1"
         echo "$abs_path2"
     else
