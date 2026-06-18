@@ -6,23 +6,14 @@
 # isolated container
 #
 # Usage:
-#   ./generate_key.sh [--key|-k <algorithm>] [--format|-f <format>] [--keypair|-p]
-#     --key/-k <string>    : (Optional) Set KEYGEN_ALGORITHM (default: ML-KEM-512)
-#     --format/-f <string> : (Optional) Set KEYGEN_FORMAT ('DER', 'PEM', ...) (default: DER)
-#     --keypair/-p         : (Optional) Enable keypair mode (outputs PEM+DER, disables --format/KEYGEN_FORMAT)
+#   ./generate_key.sh [--key|-k <algorithm>] [--format|-f <format>] [--keypair|-kp]
+#     --key/-k <string>     : (Optional) Set KEYGEN_ALGORITHM (default: ML-KEM-512)
+#     --format/-f <string>  : (Optional) Set KEYGEN_FORMAT ('DER', 'PEM', ...) (default: DER)
+#     --keypair/-kp         : (Optional) Enable keypair mode (outputs PEM+DER, disables --format/KEYGEN_FORMAT)
 #
 # Example:
 #   ./generate_key.sh --key ML-KEM-1024 --keypair
 #   ./generate_key.sh --key ML-KEM-1024 --format DER
-#
-# Flow:
-#   - Parse CLI for algorithm, format, and keypair mode
-#   - Ensure .env, override KEYGEN_ALGORITHM/KEYGEN_FORMAT/KEYGEN_KEYPAIR if flags given
-#   - Export all config from .env
-#   - Prepare temp dir/volume for result
-#   - Build the container image if needed
-#   - Run generation in the container, validate output, print result path
-#   - Schedule temp Dir cleanup
 #
 # Returns:
 #   Absolute path to generated key(s),
@@ -50,13 +41,13 @@ Usage: $0 [OPTIONS]
 Post-quantum key generation in an isolated container using OpenSSL + OQS-provider.
 
 Options:
-  --podman, -p          Use podman instead of docker
-  --docker, -d          Use docker instead of podman
-  --foreground, -f      Run container in foreground
+  --podman, -p              Use podman instead of docker
+  --docker, -d              Use docker instead of podman
+  --foreground, -f          Run container in foreground
   --key, -k <algorithm>     Set key generation algorithm (overrides KEYGEN_ALGORITHM)
   --format, -f <format>     Set key file format (DER, PEM, ...), overrides KEYGEN_FORMAT
-  --keypair, -p             Enable keypair mode (outputs PEM public + DER private), disables --format and KEYGEN_FORMAT
-  --help, -h            Show this help message and exit
+  --keypair, -kp            Enable keypair mode (outputs PEM public + DER private), disables --format and KEYGEN_FORMAT
+  --help, -h                Show this help message
 
 Examples:
   ./generate_key.sh --key ML-KEM-1024 --format PEM
@@ -103,7 +94,7 @@ parse_args() {
                     error "Option $1 requires an argument (format: DER or PEM)"
                 fi
                 ;;
-            --keypair|-p)
+            --keypair|-kp)
                 KEYPAIR_MODE="true"
                 shift
                 ;;
