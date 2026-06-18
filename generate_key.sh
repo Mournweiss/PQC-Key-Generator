@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# SPDX-FileCopyrightText: 2026 Maxim Selin <info@mournweiss.ru>
+#
+# SPDX-License-Identifier: MIT
+
 ###############################################################################
 # PQC Key Generator Orchestration Script
 # Orchestrates build, run, and cleanup for post-quantum key generation in an

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Maxim Selin <selinmax05@mail.ru>
+// SPDX-FileCopyrightText: 2026 Maxim Selin <info@mournweiss.ru>
 //
 // SPDX-License-Identifier: MIT
 
