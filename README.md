@@ -1,15 +1,16 @@
 <div align="center">
 
-# PQC-Key-Generator
+# PQC Key Generator
 
-Containerized Key Generator
+Containerized post-quantum encryption keys generator
 
 [![Authors](https://img.shields.io/badge/-AUTHORS-blue?style=for-the-badge&logoWidth=40)](AUTHORS.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge&logoWidth=40)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25.3-00ADD8?style=for-the-badge&logoWidth=40)](https://golang.org)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL-3.5.0-3C3C3D?style=for-the-badge&logoWidth=40)](https://www.openssl.org/)
-[![liboqs](https://img.shields.io/badge/liboqs-main-blueviolet?style=for-the-badge&logoWidth=40)](https://github.com/open-quantum-safe/liboqs)
-[![oqs-provider](https://img.shields.io/badge/OQS--Provider-main-purple?style=for-the-badge&logoWidth=40)](https://github.com/open-quantum-safe/oqs-provider)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL-3.5.7-3C3C3D?style=for-the-badge&logoWidth=40)](https://www.openssl.org/)
+[![liboqs](https://img.shields.io/badge/liboqs-0.15.0-blueviolet?style=for-the-badge&logoWidth=40)](https://github.com/open-quantum-safe/liboqs)
+[![oqs-provider](https://img.shields.io/badge/OQS--Provider-0.11.0-purple?style=for-the-badge&logoWidth=40)](https://github.com/open-quantum-safe/oqs-provider)
+[![OQS-OpenSSL](https://img.shields.io/badge/OQS--OpenSSL-3.5.7-green?style=for-the-badge&logoWidth=40)](https://github.com/Mournweiss/oqs-openssl-container)
 
 </div>
 
@@ -20,10 +21,11 @@ PQC-Key-Generator is a containerized toolkit for generating post-quantum cryptog
 Technology Stack:
 
 - **Go** (1.25.3)
-- **OpenSSL** (3.5.0) compiled with post-quantum algorithm support
-- **OQS-provider** (main branch)
-- **liboqs** (main branch)
-- **Podman/Docker** or compatible containerization engine
+- **[OQS-OpenSSL](https://github.com/Mournweiss/oqs-openssl-container)** (3.5.7) compiled with post-quantum algorithm support
+    - **OpenSSL** (3.5.7) — Industry-standard cryptographic library
+    - **liboqs** (0.15.0) — Open Quantum Safe cryptographic algorithms library
+    - **oqs-provider** (0.11.0) — OpenSSL 3 provider for post-quantum algorithms
+- **Podman/Docker**
 
 ## Usage
 
@@ -46,6 +48,8 @@ Technology Stack:
     ### Arguments:
 
     ```text
+    --podman, -p              Use podman instead of docker
+    --docker, -d              Use docker instead of podman
     --key, -k <algorithm>     Set key generation algorithm (overrides KEYGEN_ALGORITHM)
     --format, -f <format>     Set key file format (DER, PEM, ...), overrides KEYGEN_FORMAT
     --keypair, -kp            Enable keypair mode (outputs PEM public + DER private); disables --format/KEYGEN_FORMAT
